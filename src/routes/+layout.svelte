@@ -1,22 +1,24 @@
 <script lang="ts">
 	import '../app.css';
 	import { onMount } from 'svelte';
+	import { browser } from '$app/environment';
 
 	let { children } = $props();
 
-	// PWA registration
+	// PWA registration (runs only in browser)
 	onMount(async () => {
-		if ('serviceWorker' in navigator) {
-			const { registerSW } = await import('virtual:pwa-register');
-			registerSW({
-				immediate: true,
-				onRegistered(registration) {
-					console.log('SW registered:', registration);
-				},
-				onRegisterError(error) {
-					console.error('SW registration error:', error);
-				}
-			});
+		if (browser && 'serviceWorker' in navigator) {
+			try {
+				// @ts-ignore - virtual module from vite-plugin-pwa
+				const { registerSW } = await import('virtual:pwa-register');
+				registerSW({
+					immediate: true,
+					onRegistered: (r: unknown) => console.log('SW registered:', r),
+					onRegisterError: (e: unknown) => console.error('SW error:', e)
+				});
+			} catch {
+				// PWA not available in dev mode
+			}
 		}
 	});
 </script>

@@ -158,7 +158,8 @@ const expenses = {
 	},
 
 	async listByGroup(groupId: string): Promise<Expense[]> {
-		return dexieDb.expenses.where('groupId').equals(groupId).orderBy('date').reverse().toArray();
+		const expenses = await dexieDb.expenses.where('groupId').equals(groupId).toArray();
+		return expenses.sort((a, b) => b.date - a.date);
 	},
 
 	async update(

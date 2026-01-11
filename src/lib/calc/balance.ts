@@ -101,15 +101,20 @@ export function simplifyDebts(balances: Map<string, number>): Debt[] {
 
 /**
  * Calculate equal split among members
+ * Handles rounding by distributing remainder to ensure total equals original amount
  */
 export function calculateEqualSplit(amount: number, memberIds: string[]): Split[] {
-	const perPerson = amount / memberIds.length;
+	const count = memberIds.length;
+	const perPerson = Math.floor((amount * 100) / count) / 100;
+	const totalDistributed = perPerson * count;
+	const remainder = Math.round((amount - totalDistributed) * 100); // remainder in cents
 
-	return memberIds.map((memberId) => ({
+	return memberIds.map((memberId, index) => ({
 		memberId,
 		type: 'equal' as const,
 		value: 1,
-		resolvedAmount: Math.round(perPerson * 100) / 100
+		// Distribute remainder cents to first N people
+		resolvedAmount: perPerson + (index < remainder ? 0.01 : 0)
 	}));
 }
 

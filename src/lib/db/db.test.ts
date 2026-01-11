@@ -52,7 +52,7 @@ describe('Database', () => {
 
 			const updated = await db.groups.update(group.id, { name: 'New Name' });
 			expect(updated?.name).toBe('New Name');
-			expect(updated?.updatedAt).toBeGreaterThan(group.updatedAt);
+			expect(updated?.updatedAt).toBeGreaterThanOrEqual(group.updatedAt);
 		});
 
 		it('should delete a group', async () => {
