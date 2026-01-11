@@ -7,37 +7,40 @@
 ## Phase 1: Project Foundation
 
 ### 1.1 Project Setup
-- [ ] Create SvelteKit project with `npm create svelte@latest`
-- [ ] Add TypeScript configuration
-- [ ] Install and configure Tailwind CSS
-- [ ] Install Skeleton UI component library
-- [ ] Configure PWA manifest and service worker
-- [ ] Set up Workbox for offline caching
-- [ ] Configure ESLint with Svelte plugin
-- [ ] Configure Prettier
-- [ ] Initialize Git repository
-- [ ] Create initial commit
+- [x] Create SvelteKit project with `npm create svelte@latest`
+- [x] Add TypeScript configuration
+- [x] Install and configure Tailwind CSS
+- [x] Install Skeleton UI component library
+- [x] Configure PWA manifest and service worker
+- [x] Set up Workbox for offline caching
+- [x] Configure ESLint with Svelte plugin
+- [x] Configure Prettier
+- [x] Initialize Git repository
+- [x] Create initial commit
+- [x] Set up Vitest for unit testing
+- [x] Set up Playwright for e2e testing
+- [x] Configure fake-indexeddb for test environment
 
 ### 1.2 Local Database Layer
-- [ ] Install Dexie.js
-- [ ] Create `src/lib/db/index.ts` - database initialization
+- [x] Install Dexie.js
+- [x] Create `src/lib/db/index.ts` - database initialization with CRUD
+- [x] Write unit tests for database operations (TDD)
 - [ ] Create `src/lib/db/schema.ts` - table definitions
-- [ ] Create `src/lib/db/groups.ts` - group CRUD operations
-- [ ] Create `src/lib/db/members.ts` - member CRUD operations
-- [ ] Create `src/lib/db/expenses.ts` - expense CRUD operations
-- [ ] Create `src/lib/db/splits.ts` - split CRUD operations
 - [ ] Add database version migration support
-- [ ] Write unit tests for database operations
 
 ### 1.3 Core Data Types
-- [ ] Create `src/lib/types/group.ts`
-- [ ] Create `src/lib/types/member.ts`
-- [ ] Create `src/lib/types/expense.ts`
-- [ ] Create `src/lib/types/split.ts`
-- [ ] Create `src/lib/types/receipt.ts`
+- [x] Create `src/lib/types/index.ts` - all core types
 - [ ] Create `src/lib/utils/uuid.ts` - ID generation
 - [ ] Create `src/lib/utils/date.ts` - timestamp utilities
 - [ ] Create `src/lib/utils/validation.ts` - input validation
+
+### 1.4 Balance Calculation (TDD)
+- [x] Write tests for balance calculations
+- [x] Create `src/lib/calc/balance.ts` - core calculation functions
+- [x] Implement calculateTotals
+- [x] Implement calculateBalances
+- [x] Implement simplifyDebts
+- [x] Implement split calculators (equal, percentage, shares)
 
 ---
 
