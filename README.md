@@ -1,80 +1,66 @@
 # LetsGoDutch
 
-Privacy-first, peer-to-peer expense sharing app.
+LetsGoDutch is a privacy-first expense sharing app for trips, roommates, and small groups. The goal is to keep the convenience of Splitwise-style tracking while pushing more data handling onto the device and reducing reliance on a central service.
 
-## Features
+## Product direction
 
-- **Receipt Scanning** - On-device OCR, your images never leave your phone
-- **Smart Splits** - Equal, percentage, by-item, and more
-- **Multi-Currency** - Real-time rates, works offline
-- **P2P Sync** - No central server, sync directly with friends
-- **Always Free** - No premium tiers, open source forever
+- Receipt scanning with on-device OCR
+- Flexible split types for real-world group expenses
+- Multi-currency support with offline-friendly behavior
+- Local-first storage with peer-to-peer collaboration
+- Open source and free to use
 
-## Tech Stack
+## Tech stack
 
-- **Framework**: SvelteKit 2 + TypeScript
-- **UI**: Tailwind CSS + Skeleton UI
-- **Database**: IndexedDB via Dexie.js
-- **Sync**: Yjs + y-webrtc (P2P CRDT)
-- **OCR**: Tesseract.js (on-device)
-- **PWA**: Vite PWA + Workbox
+- SvelteKit 2 and TypeScript
+- Tailwind CSS and Skeleton UI
+- IndexedDB via Dexie
+- Yjs-based sync
+- Tesseract.js for OCR
+- Vite PWA tooling
 
-## Getting Started
+## Local development
 
 ```bash
-# Install dependencies
 npm install
-
-# Start dev server
 npm run dev
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
 ```
 
-## Development
+Open the local dev server URL shown by Vite.
+
+## Common commands
 
 ```bash
-# Type checking
+npm run build
+npm run preview
 npm run check
-
-# Linting
 npm run lint
-
-# Format code
 npm run format
+npm test
+npm run test:e2e
 ```
 
-## Project Structure
+## Repository layout
 
-```
-src/
-├── lib/
-│   ├── components/   # Svelte components
-│   ├── db/           # Dexie database layer
-│   ├── sync/         # P2P sync with Yjs
-│   ├── ocr/          # Receipt scanning
-│   ├── calc/         # Balance calculations
-│   ├── currency/     # Exchange rates
-│   └── types/        # TypeScript types
-├── routes/           # SvelteKit pages
-└── app.css           # Global styles
-```
+- `src/lib/components`: UI building blocks
+- `src/lib/db`: local persistence
+- `src/lib/ocr`: receipt processing
+- `src/lib/sync`: collaboration and sync primitives
+- `src/lib/calc`: split and balance calculations
+- `src/lib/currency`: exchange-rate logic
+- `src/routes`: SvelteKit routes and screens
 
-## Privacy
+## Privacy model
 
-- All data stored locally in IndexedDB
-- OCR runs entirely on-device
-- P2P sync uses WebRTC (no server stores your data)
-- Invite links use URL fragments (keys never sent to server)
+- Data is stored locally in the browser
+- OCR runs on-device
+- Sync is designed around direct collaboration rather than a permanent central backend
+- Secret material for invites can stay out of normal server logs
+
+## Status
+
+Current status: active product prototype under development.
 
 ## License
 
-AGPL-3.0 - See [LICENSE](LICENSE) for details.
-
----
-
-Built with privacy in mind.
+AGPL-3.0. See [LICENSE](LICENSE).
