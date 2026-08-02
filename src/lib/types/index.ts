@@ -55,6 +55,17 @@ export interface ReceiptData {
 	extractedAt: number;
 }
 
+export interface Settlement {
+	id: string;
+	groupId: string;
+	from: string; // Member ID who paid the settlement
+	to: string; // Member ID who received it
+	amount: number;
+	currency: string;
+	date: number;
+	createdAt: number;
+}
+
 // Utility types
 export interface Balance {
 	memberId: string;

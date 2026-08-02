@@ -1,4 +1,4 @@
-import type { Expense, Member, Split, Debt } from '$lib/types';
+import type { Expense, Member, Split, Debt, Settlement } from '$lib/types';
 
 /**
  * Calculate total amount paid by each member
@@ -24,8 +24,13 @@ export function calculateTotals(expenses: Expense[], members: Member[]): Map<str
  * Calculate balance for each member
  * Positive = is owed money
  * Negative = owes money
+ * Recorded settlements move money from debtor to creditor, reducing both sides.
  */
-export function calculateBalances(expenses: Expense[], members: Member[]): Map<string, number> {
+export function calculateBalances(
+	expenses: Expense[],
+	members: Member[],
+	settlements: Settlement[] = []
+): Map<string, number> {
 	const balances = new Map<string, number>();
 
 	// Initialize all members with 0
@@ -43,6 +48,16 @@ export function calculateBalances(expenses: Expense[], members: Member[]): Map<s
 			const memberBalance = balances.get(split.memberId) ?? 0;
 			balances.set(split.memberId, memberBalance - split.resolvedAmount);
 		}
+	}
+
+	// A settlement is a real payment: the payer's debt shrinks and the
+	// receiver has been paid back, so their credit shrinks too
+	for (const settlement of settlements) {
+		const fromBalance = balances.get(settlement.from) ?? 0;
+		balances.set(settlement.from, fromBalance + settlement.amount);
+
+		const toBalance = balances.get(settlement.to) ?? 0;
+		balances.set(settlement.to, toBalance - settlement.amount);
 	}
 
 	return balances;

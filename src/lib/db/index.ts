@@ -1,16 +1,18 @@
 import Dexie, { type EntityTable } from 'dexie';
-import type { Group, Member, Expense, Split } from '$lib/types';
+import type { Group, Member, Expense, Split, Settlement } from '$lib/types';
 
 // Database schema
-interface GroupRecord extends Group {}
-interface MemberRecord extends Member {}
-interface ExpenseRecord extends Expense {}
+type GroupRecord = Group;
+type MemberRecord = Member;
+type ExpenseRecord = Expense;
+type SettlementRecord = Settlement;
 
 // Dexie database class
 class LetsGoDutchDB extends Dexie {
 	groups!: EntityTable<GroupRecord, 'id'>;
 	members!: EntityTable<MemberRecord, 'id'>;
 	expenses!: EntityTable<ExpenseRecord, 'id'>;
+	settlements!: EntityTable<SettlementRecord, 'id'>;
 
 	constructor() {
 		super('LetsGoDutchDB');
@@ -19,6 +21,13 @@ class LetsGoDutchDB extends Dexie {
 			groups: 'id, name, createdAt',
 			members: 'id, groupId, name',
 			expenses: 'id, groupId, paidBy, date, createdAt'
+		});
+
+		this.version(2).stores({
+			groups: 'id, name, createdAt',
+			members: 'id, groupId, name',
+			expenses: 'id, groupId, paidBy, date, createdAt',
+			settlements: 'id, groupId, from, to, date, createdAt'
 		});
 	}
 }
@@ -71,11 +80,22 @@ const groups = {
 
 	async delete(id: string): Promise<void> {
 		// Delete group and all related data
-		await dexieDb.transaction('rw', [dexieDb.groups, dexieDb.members, dexieDb.expenses], async () => {
-			await dexieDb.expenses.where('groupId').equals(id).delete();
-			await dexieDb.members.where('groupId').equals(id).delete();
-			await dexieDb.groups.delete(id);
-		});
+		await dexieDb.transaction(
+			'rw',
+			[dexieDb.groups, dexieDb.members, dexieDb.expenses, dexieDb.settlements],
+			async () => {
+				await dexieDb.settlements.where('groupId').equals(id).delete();
+				await dexieDb.expenses.where('groupId').equals(id).delete();
+				await dexieDb.members.where('groupId').equals(id).delete();
+				await dexieDb.groups.delete(id);
+			}
+		);
+	},
+
+	// Upsert with a caller-provided id (sync/import)
+	async put(group: Group): Promise<Group> {
+		await dexieDb.groups.put(group);
+		return group;
 	}
 };
 
@@ -117,6 +137,12 @@ const members = {
 
 	async delete(id: string): Promise<void> {
 		await dexieDb.members.delete(id);
+	},
+
+	// Upsert with a caller-provided id (sync/import)
+	async put(member: Member): Promise<Member> {
+		await dexieDb.members.put(member);
+		return member;
 	}
 };
 
@@ -181,6 +207,58 @@ const expenses = {
 
 	async delete(id: string): Promise<void> {
 		await dexieDb.expenses.delete(id);
+	},
+
+	// Upsert with a caller-provided id (sync/import)
+	async put(expense: Expense): Promise<Expense> {
+		await dexieDb.expenses.put(expense);
+		return expense;
+	}
+};
+
+// Settlement operations
+const settlements = {
+	async create(data: {
+		groupId: string;
+		from: string;
+		to: string;
+		amount: number;
+		currency: string;
+		date?: number;
+	}): Promise<Settlement> {
+		const now = Date.now();
+		const settlement: Settlement = {
+			id: generateId(),
+			groupId: data.groupId,
+			from: data.from,
+			to: data.to,
+			amount: data.amount,
+			currency: data.currency,
+			date: data.date ?? now,
+			createdAt: now
+		};
+
+		await dexieDb.settlements.add(settlement);
+		return settlement;
+	},
+
+	async get(id: string): Promise<Settlement | undefined> {
+		return dexieDb.settlements.get(id);
+	},
+
+	async listByGroup(groupId: string): Promise<Settlement[]> {
+		const settlements = await dexieDb.settlements.where('groupId').equals(groupId).toArray();
+		return settlements.sort((a, b) => b.date - a.date);
+	},
+
+	async delete(id: string): Promise<void> {
+		await dexieDb.settlements.delete(id);
+	},
+
+	// Upsert with a caller-provided id (sync/import)
+	async put(settlement: Settlement): Promise<Settlement> {
+		await dexieDb.settlements.put(settlement);
+		return settlement;
 	}
 };
 
@@ -189,13 +267,15 @@ async function resetDatabase(): Promise<void> {
 	await dexieDb.groups.clear();
 	await dexieDb.members.clear();
 	await dexieDb.expenses.clear();
+	await dexieDb.settlements.clear();
 }
 
 // Export database API
 export const db = {
 	groups,
 	members,
-	expenses
+	expenses,
+	settlements
 };
 
 export { resetDatabase, dexieDb };

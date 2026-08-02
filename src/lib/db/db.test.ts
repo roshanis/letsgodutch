@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { db, resetDatabase } from './index';
-import type { Group, Member, Expense } from '$lib/types';
 
 describe('Database', () => {
 	beforeEach(async () => {
@@ -223,6 +222,129 @@ describe('Database', () => {
 			await db.expenses.delete(expense.id);
 			const expenses = await db.expenses.listByGroup(groupId);
 			expect(expenses).toHaveLength(0);
+		});
+	});
+
+	describe('Settlements', () => {
+		let groupId: string;
+		let aliceId: string;
+		let bobId: string;
+
+		beforeEach(async () => {
+			const group = await db.groups.create({
+				name: 'Test Group',
+				defaultCurrency: 'USD'
+			});
+			groupId = group.id;
+
+			const alice = await db.members.create({ groupId, name: 'Alice', homeCurrency: 'USD' });
+			const bob = await db.members.create({ groupId, name: 'Bob', homeCurrency: 'USD' });
+			aliceId = alice.id;
+			bobId = bob.id;
+		});
+
+		it('should create a settlement', async () => {
+			const settlement = await db.settlements.create({
+				groupId,
+				from: bobId,
+				to: aliceId,
+				amount: 25.5,
+				currency: 'USD'
+			});
+
+			expect(settlement.id).toBeDefined();
+			expect(settlement.from).toBe(bobId);
+			expect(settlement.to).toBe(aliceId);
+			expect(settlement.amount).toBe(25.5);
+			expect(settlement.date).toBeDefined();
+		});
+
+		it('should list settlements by group', async () => {
+			await db.settlements.create({ groupId, from: bobId, to: aliceId, amount: 10, currency: 'USD' });
+			await db.settlements.create({ groupId, from: aliceId, to: bobId, amount: 5, currency: 'USD' });
+
+			const settlements = await db.settlements.listByGroup(groupId);
+			expect(settlements).toHaveLength(2);
+		});
+
+		it('should delete a settlement', async () => {
+			const settlement = await db.settlements.create({
+				groupId,
+				from: bobId,
+				to: aliceId,
+				amount: 10,
+				currency: 'USD'
+			});
+
+			await db.settlements.delete(settlement.id);
+			const settlements = await db.settlements.listByGroup(groupId);
+			expect(settlements).toHaveLength(0);
+		});
+
+		it('should delete settlements when the group is deleted', async () => {
+			await db.settlements.create({ groupId, from: bobId, to: aliceId, amount: 10, currency: 'USD' });
+
+			await db.groups.delete(groupId);
+			const settlements = await db.settlements.listByGroup(groupId);
+			expect(settlements).toHaveLength(0);
+		});
+	});
+
+	describe('Id-preserving upserts (put)', () => {
+		it('should keep the caller-provided ids', async () => {
+			const now = Date.now();
+			await db.groups.put({
+				id: 'group-1',
+				name: 'Synced Group',
+				defaultCurrency: 'EUR',
+				createdAt: now,
+				updatedAt: now
+			});
+			await db.members.put({
+				id: 'member-1',
+				groupId: 'group-1',
+				name: 'Alice',
+				homeCurrency: 'EUR',
+				createdAt: now
+			});
+			await db.expenses.put({
+				id: 'expense-1',
+				groupId: 'group-1',
+				paidBy: 'member-1',
+				amount: 42,
+				currency: 'EUR',
+				exchangeRate: 1,
+				description: 'Synced expense',
+				date: now,
+				splits: [{ memberId: 'member-1', type: 'equal', value: 1, resolvedAmount: 42 }],
+				createdAt: now,
+				updatedAt: now
+			});
+
+			const group = await db.groups.get('group-1');
+			const member = await db.members.get('member-1');
+			const expense = await db.expenses.get('expense-1');
+
+			expect(group?.name).toBe('Synced Group');
+			expect(member?.groupId).toBe('group-1');
+			expect(expense?.paidBy).toBe('member-1');
+		});
+
+		it('should overwrite an existing record with the same id', async () => {
+			const now = Date.now();
+			const base = {
+				id: 'group-1',
+				name: 'Original',
+				defaultCurrency: 'USD',
+				createdAt: now,
+				updatedAt: now
+			};
+			await db.groups.put(base);
+			await db.groups.put({ ...base, name: 'Updated' });
+
+			const groups = await db.groups.list();
+			expect(groups).toHaveLength(1);
+			expect(groups[0].name).toBe('Updated');
 		});
 	});
 });

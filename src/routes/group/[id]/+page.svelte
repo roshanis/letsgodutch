@@ -4,9 +4,17 @@
 	import { page } from '$app/stores';
 	import { db } from '$lib/db';
 	import { calculateBalances, simplifyDebts } from '$lib/calc/balance';
-	import { initGroupSync, getConnectionStatus, getPeerCount, destroyGroupSync, type GroupSync } from '$lib/sync/yjs';
+	import {
+		initGroupSync,
+		getConnectionStatus,
+		getPeerCount,
+		destroyGroupSync,
+		removeSettlementFromYjs,
+		type GroupSync
+	} from '$lib/sync/yjs';
+	import { pushLocalDataToYjs, startYjsToDexieBridge } from '$lib/sync/bridge';
 	import { getStoredRoomKey } from '$lib/sync/invite';
-	import type { Group, Member, Expense, Debt } from '$lib/types';
+	import type { Group, Member, Expense, Debt, Settlement } from '$lib/types';
 	import Header from '$lib/components/Header.svelte';
 	import MemberList from '$lib/components/MemberList.svelte';
 	import ExpenseCard from '$lib/components/ExpenseCard.svelte';
@@ -19,6 +27,7 @@
 	let group = $state<Group | null>(null);
 	let members = $state<Member[]>([]);
 	let expenses = $state<Expense[]>([]);
+	let settlements = $state<Settlement[]>([]);
 	let balances = $state<Map<string, number>>(new Map());
 	let debts = $state<Debt[]>([]);
 	let loading = $state(true);
@@ -31,6 +40,8 @@
 	let sync = $state<GroupSync | null>(null);
 	let syncStatus = $state<'disconnected' | 'connecting' | 'connected'>('disconnected');
 	let peerCount = $state(0);
+	let statusInterval: ReturnType<typeof setInterval> | null = null;
+	let stopBridge: (() => void) | null = null;
 
 	const groupId = $derived($page.params.id as string);
 
@@ -40,23 +51,38 @@
 			return;
 		}
 		await loadGroup();
-		initSync();
+		await initSync();
 	});
 
 	onDestroy(() => {
+		stopBridge?.();
+		if (statusInterval) clearInterval(statusInterval);
 		if (sync) {
 			destroyGroupSync(groupId);
 		}
 	});
 
-	function initSync() {
+	async function initSync() {
 		const roomKey = getStoredRoomKey(groupId);
 		if (roomKey) {
-			sync = initGroupSync(groupId, roomKey);
-			updateSyncStatus();
-			// Update status periodically
-			const interval = setInterval(updateSyncStatus, 2000);
-			return () => clearInterval(interval);
+			await startSync(roomKey);
+		}
+	}
+
+	async function startSync(roomKey: string) {
+		sync = initGroupSync(groupId, roomKey);
+
+		// Wait for the locally persisted Yjs state to load, push our data into
+		// the document, then start mirroring remote changes back into Dexie
+		await sync.persistence.whenSynced;
+		await pushLocalDataToYjs(sync.doc, groupId);
+		stopBridge = startYjsToDexieBridge(sync.doc, groupId, () => {
+			refreshData();
+		});
+
+		updateSyncStatus();
+		if (!statusInterval) {
+			statusInterval = setInterval(updateSyncStatus, 2000);
 		}
 	}
 
@@ -68,8 +94,25 @@
 	}
 
 	function handleSyncEnabled(roomKey: string) {
-		sync = initGroupSync(groupId, roomKey);
-		updateSyncStatus();
+		startSync(roomKey);
+	}
+
+	// Push local Dexie state into the shared document (after local mutations)
+	async function pushToSync() {
+		if (sync) {
+			await pushLocalDataToYjs(sync.doc, groupId);
+		}
+	}
+
+	// Reload data without toggling the loading state (for background sync updates)
+	async function refreshData() {
+		if (!groupId) return;
+		group = (await db.groups.get(groupId)) ?? group;
+		members = await db.members.listByGroup(groupId);
+		expenses = await db.expenses.listByGroup(groupId);
+		settlements = await db.settlements.listByGroup(groupId);
+		balances = calculateBalances(expenses, members, settlements);
+		debts = simplifyDebts(balances);
 	}
 
 	async function loadGroup() {
@@ -81,12 +124,7 @@
 				goto('/');
 				return;
 			}
-			members = await db.members.listByGroup(groupId);
-			expenses = await db.expenses.listByGroup(groupId);
-
-			// Calculate balances
-			balances = calculateBalances(expenses, members);
-			debts = simplifyDebts(balances);
+			await refreshData();
 		} catch (err) {
 			console.error('Failed to load group:', err);
 		} finally {
@@ -98,14 +136,37 @@
 		return members.find((m) => m.id === id);
 	}
 
-	function handleMemberAdded() {
+	async function handleMemberAdded() {
 		showAddMember = false;
-		loadGroup();
+		await loadGroup();
+		await pushToSync();
 	}
 
-	function handleExpenseSaved() {
+	async function handleExpenseSaved() {
 		showAddExpense = false;
-		loadGroup();
+		await loadGroup();
+		await pushToSync();
+	}
+
+	async function handleSettle(debt: Debt) {
+		if (!group) return;
+		await db.settlements.create({
+			groupId,
+			from: debt.from,
+			to: debt.to,
+			amount: debt.amount,
+			currency: group.defaultCurrency
+		});
+		await refreshData();
+		await pushToSync();
+	}
+
+	async function handleDeleteSettlement(settlementId: string) {
+		await db.settlements.delete(settlementId);
+		if (sync) {
+			removeSettlementFromYjs(sync.doc, settlementId);
+		}
+		await refreshData();
 	}
 </script>
 
@@ -217,7 +278,10 @@
 					<BalanceSummary
 						{debts}
 						{members}
+						{settlements}
 						currency={group.defaultCurrency}
+						onSettle={handleSettle}
+						onDeleteSettlement={handleDeleteSettlement}
 					/>
 				{:else if activeTab === 'members'}
 					{#if members.length === 0}

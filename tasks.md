@@ -94,8 +94,8 @@
 ### 3.2 Balance UI
 - [x] Create `src/lib/components/BalanceSummary.svelte`
 - [x] Settlement suggestions in BalanceSummary
-- [ ] Add "Mark as Settled" functionality
-- [ ] Create settlement history view
+- [x] Add "Mark as Settled" functionality
+- [x] Create settlement history view (with undo)
 
 ---
 
@@ -106,8 +106,8 @@
 - [x] Create `src/lib/sync/yjs.ts` - Yjs document setup
 - [x] Define Yjs shared types matching schema
 - [x] y-indexeddb persistence integration
-- [ ] Create bidirectional sync: Dexie ↔ Yjs (partial)
-- [ ] Handle initial data load from Yjs
+- [x] Create bidirectional sync: Dexie ↔ Yjs (`src/lib/sync/bridge.ts`)
+- [x] Handle initial data load from Yjs (join flow keeps original ids)
 
 ### 4.2 WebRTC Connection
 - [x] Install y-webrtc
@@ -236,12 +236,12 @@
 - [ ] Test airplane mode scenarios
 
 ### 9.2 Data Management
-- [ ] Create `src/lib/export/json.ts`
-- [ ] Create `src/lib/export/csv.ts`
-- [ ] Create `src/routes/settings/+page.svelte`
-- [ ] Add export buttons to settings
-- [ ] Add import functionality
-- [ ] Add "Delete All Data" with confirmation
+- [x] Create `src/lib/export/json.ts`
+- [x] Create `src/lib/export/csv.ts`
+- [x] Create `src/routes/settings/+page.svelte`
+- [x] Add export buttons to settings
+- [x] Add import functionality
+- [x] Add "Delete All Data" with confirmation
 
 ### 9.3 Accessibility
 - [ ] Audit with axe-core
@@ -288,16 +288,18 @@
 - Phase 7: Multi-Currency Support ✅
 - Phase 8: Smart Suggestions ✅
 
-**Next Up:** Phase 9 - Polish & Launch
+**Next Up:** Phase 9 - Polish & Launch (accessibility, performance, docs)
 
 **Status:** Feature-complete MVP
 - Create groups with members
 - Add expenses with multiple split modes
+- Mark debts as settled, with settlement history and undo
 - Scan receipts with OCR
 - Multi-currency support
-- P2P sync with invite links
+- P2P sync with invite links (bidirectional Dexie ↔ Yjs bridge)
+- JSON backup/restore and CSV export from Settings
 - Smart category suggestions
-- 46 tests passing
+- 65 unit tests + 7 e2e tests passing
 
 ---
 

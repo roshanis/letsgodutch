@@ -7,7 +7,7 @@ import {
 	calculatePercentageSplit,
 	calculateSharesSplit
 } from './balance';
-import type { Expense, Member, Split, Debt } from '$lib/types';
+import type { Expense, Member, Settlement } from '$lib/types';
 
 describe('Balance Calculations', () => {
 	const members: Member[] = [
@@ -135,6 +135,86 @@ describe('Balance Calculations', () => {
 			expect(balances.get('alice')).toBe(40); // Paid 60, owes 20
 			expect(balances.get('bob')).toBe(-20); // Paid 0, owes 20
 			expect(balances.get('carol')).toBe(-20); // Paid 0, owes 20
+		});
+	});
+
+	describe('calculateBalances with settlements', () => {
+		const expenses: Expense[] = [
+			{
+				id: 'e1',
+				groupId: 'g1',
+				paidBy: 'alice',
+				amount: 60,
+				currency: 'USD',
+				exchangeRate: 1,
+				description: 'Taxi',
+				date: 0,
+				splits: [
+					{ memberId: 'alice', type: 'equal', value: 1, resolvedAmount: 20 },
+					{ memberId: 'bob', type: 'equal', value: 1, resolvedAmount: 20 },
+					{ memberId: 'carol', type: 'equal', value: 1, resolvedAmount: 20 }
+				],
+				createdAt: 0,
+				updatedAt: 0
+			}
+		];
+
+		it('should reduce debt when a settlement is recorded', () => {
+			// Bob owes Alice 20, pays back 15
+			const settlements: Settlement[] = [
+				{
+					id: 's1',
+					groupId: 'g1',
+					from: 'bob',
+					to: 'alice',
+					amount: 15,
+					currency: 'USD',
+					date: 0,
+					createdAt: 0
+				}
+			];
+
+			const balances = calculateBalances(expenses, members, settlements);
+			expect(balances.get('alice')).toBe(25); // was owed 40, received 15
+			expect(balances.get('bob')).toBe(-5); // owed 20, paid 15
+			expect(balances.get('carol')).toBe(-20); // unchanged
+		});
+
+		it('should fully settle when the exact amount is paid', () => {
+			const settlements: Settlement[] = [
+				{
+					id: 's1',
+					groupId: 'g1',
+					from: 'bob',
+					to: 'alice',
+					amount: 20,
+					currency: 'USD',
+					date: 0,
+					createdAt: 0
+				},
+				{
+					id: 's2',
+					groupId: 'g1',
+					from: 'carol',
+					to: 'alice',
+					amount: 20,
+					currency: 'USD',
+					date: 0,
+					createdAt: 0
+				}
+			];
+
+			const balances = calculateBalances(expenses, members, settlements);
+			expect(balances.get('alice')).toBe(0);
+			expect(balances.get('bob')).toBe(0);
+			expect(balances.get('carol')).toBe(0);
+			expect(simplifyDebts(balances)).toHaveLength(0);
+		});
+
+		it('should not change balances with no settlements', () => {
+			const withEmpty = calculateBalances(expenses, members, []);
+			const without = calculateBalances(expenses, members);
+			expect(withEmpty).toEqual(without);
 		});
 	});
 

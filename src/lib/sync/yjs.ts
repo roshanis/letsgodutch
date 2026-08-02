@@ -1,7 +1,7 @@
 import * as Y from 'yjs';
 import { IndexeddbPersistence } from 'y-indexeddb';
 import { WebrtcProvider } from 'y-webrtc';
-import type { Group, Member, Expense } from '$lib/types';
+import type { Group, Member, Expense, Settlement } from '$lib/types';
 
 // Yjs document for a group
 export interface GroupSync {
@@ -71,7 +71,8 @@ export function getSharedTypes(doc: Y.Doc) {
 	return {
 		group: doc.getMap<Group>('group'),
 		members: doc.getMap<Member>('members'),
-		expenses: doc.getMap<Expense>('expenses')
+		expenses: doc.getMap<Expense>('expenses'),
+		settlements: doc.getMap<Settlement>('settlements')
 	};
 }
 
@@ -126,24 +127,49 @@ export function removeExpenseFromYjs(doc: Y.Doc, expenseId: string) {
 }
 
 /**
+ * Sync settlement to Yjs document
+ */
+export function syncSettlementToYjs(doc: Y.Doc, settlement: Settlement) {
+	const shared = getSharedTypes(doc);
+	doc.transact(() => {
+		shared.settlements.set(settlement.id, settlement);
+	});
+}
+
+/**
+ * Remove settlement from Yjs document
+ */
+export function removeSettlementFromYjs(doc: Y.Doc, settlementId: string) {
+	const shared = getSharedTypes(doc);
+	doc.transact(() => {
+		shared.settlements.delete(settlementId);
+	});
+}
+
+export interface YjsSnapshot {
+	group: Group | undefined;
+	members: Member[];
+	expenses: Expense[];
+	settlements: Settlement[];
+}
+
+/**
  * Get all data from Yjs document
  */
-export function getDataFromYjs(doc: Y.Doc) {
+export function getDataFromYjs(doc: Y.Doc): YjsSnapshot {
 	const shared = getSharedTypes(doc);
 	return {
 		group: shared.group.get('data'),
 		members: Array.from(shared.members.values()),
-		expenses: Array.from(shared.expenses.values())
+		expenses: Array.from(shared.expenses.values()),
+		settlements: Array.from(shared.settlements.values())
 	};
 }
 
 /**
  * Subscribe to changes in Yjs document
  */
-export function subscribeToChanges(
-	doc: Y.Doc,
-	callback: (data: { group?: Group; members: Member[]; expenses: Expense[] }) => void
-) {
+export function subscribeToChanges(doc: Y.Doc, callback: (data: YjsSnapshot) => void) {
 	const shared = getSharedTypes(doc);
 
 	const handler = () => {
@@ -153,12 +179,14 @@ export function subscribeToChanges(
 	shared.group.observe(handler);
 	shared.members.observe(handler);
 	shared.expenses.observe(handler);
+	shared.settlements.observe(handler);
 
 	// Return unsubscribe function
 	return () => {
 		shared.group.unobserve(handler);
 		shared.members.unobserve(handler);
 		shared.expenses.unobserve(handler);
+		shared.settlements.unobserve(handler);
 	};
 }
 

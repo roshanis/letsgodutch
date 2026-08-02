@@ -4,9 +4,9 @@
 	import { page } from '$app/stores';
 	import { browser } from '$app/environment';
 	import { getRoomKeyFromHash, storeRoomKey } from '$lib/sync/invite';
-	import { initGroupSync, getDataFromYjs, subscribeToChanges } from '$lib/sync/yjs';
+	import { initGroupSync, getDataFromYjs, subscribeToChanges, type YjsSnapshot } from '$lib/sync/yjs';
+	import { applySnapshotToDexie } from '$lib/sync/bridge';
 	import { db } from '$lib/db';
-	import type { Group } from '$lib/types';
 	import Header from '$lib/components/Header.svelte';
 
 	let status = $state<'loading' | 'joining' | 'syncing' | 'success' | 'error'>('loading');
@@ -49,74 +49,36 @@
 					reject(new Error('Sync timeout - no peers available'));
 				}, 30000);
 
-				// Wait for persistence to load
-				sync.persistence.once('synced', async () => {
-					const data = getDataFromYjs(sync.doc);
+				let settled = false;
 
-					if (data.group) {
-						clearTimeout(timeout);
+				// Save the received snapshot into the local database with the
+				// original ids intact, so member/expense references stay valid
+				const trySaveSnapshot = async (data: YjsSnapshot) => {
+					if (settled || !data.group) return;
+					settled = true;
+					clearTimeout(timeout);
 
-						// Save to local database
-						const group: Group = {
-							id: groupId,
-							name: data.group.name,
-							defaultCurrency: data.group.defaultCurrency,
-							createdAt: data.group.createdAt,
-							updatedAt: Date.now()
-						};
-
-						// Create group in local DB
-						await db.groups.create({
-							name: group.name,
-							defaultCurrency: group.defaultCurrency
-						}).catch(() => {
-							// Group might already exist, that's fine
-						});
-
-						// Sync members
-						for (const member of data.members) {
-							await db.members.create({
-								groupId: member.groupId,
-								name: member.name,
-								homeCurrency: member.homeCurrency
-							}).catch(() => {});
-						}
-
-						// Sync expenses
-						for (const expense of data.expenses) {
-							await db.expenses.create({
-								groupId: expense.groupId,
-								paidBy: expense.paidBy,
-								amount: expense.amount,
-								currency: expense.currency,
-								exchangeRate: expense.exchangeRate,
-								description: expense.description,
-								category: expense.category,
-								date: expense.date,
-								splits: expense.splits
-							}).catch(() => {});
-						}
-
-						groupName = group.name;
+					try {
+						await applySnapshotToDexie(groupId, data);
+						groupName = data.group.name;
 						memberCount = data.members.length;
 						storeRoomKey(groupId, roomKey);
 						status = 'success';
 						resolve();
+					} catch (err) {
+						settled = false;
+						reject(err instanceof Error ? err : new Error('Failed to save group data'));
 					}
+				};
+
+				// Wait for persistence to load (data may exist from a prior visit)
+				sync.persistence.once('synced', () => {
+					trySaveSnapshot(getDataFromYjs(sync.doc));
 				});
 
-				// Also listen for WebRTC updates
+				// Also listen for WebRTC updates from peers
 				if (sync.provider) {
-					subscribeToChanges(sync.doc, async (data) => {
-						if (data.group && status === 'syncing') {
-							clearTimeout(timeout);
-							groupName = data.group.name;
-							memberCount = data.members.length;
-							storeRoomKey(groupId, roomKey);
-							status = 'success';
-							resolve();
-						}
-					});
+					subscribeToChanges(sync.doc, trySaveSnapshot);
 				}
 			});
 		} catch (err) {
