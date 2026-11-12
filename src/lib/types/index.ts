@@ -29,9 +29,9 @@ export interface Expense {
 	id: string;
 	groupId: string;
 	paidBy: string; // Member ID
-	amount: number;
+	amount: number; // In `currency`
 	currency: string;
-	exchangeRate: number;
+	exchangeRate: number; // Multiplier converting `currency` into the group's default currency
 	description: string;
 	category?: string;
 	date: number;

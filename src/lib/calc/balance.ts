@@ -1,7 +1,18 @@
 import type { Expense, Member, Split, Debt, Settlement } from '$lib/types';
 
+// Rate converting an expense's currency into the group's default currency.
+// Falls back to 1 for records saved before rates were stored.
+function expenseRate(expense: Expense): number {
+	return expense.exchangeRate > 0 ? expense.exchangeRate : 1;
+}
+
+function roundCents(amount: number): number {
+	const rounded = Math.round(amount * 100) / 100;
+	return rounded === 0 ? 0 : rounded; // normalize -0
+}
+
 /**
- * Calculate total amount paid by each member
+ * Calculate total amount paid by each member, in the group's default currency
  */
 export function calculateTotals(expenses: Expense[], members: Member[]): Map<string, number> {
 	const totals = new Map<string, number>();
@@ -14,14 +25,20 @@ export function calculateTotals(expenses: Expense[], members: Member[]): Map<str
 	// Sum up payments
 	for (const expense of expenses) {
 		const current = totals.get(expense.paidBy) ?? 0;
-		totals.set(expense.paidBy, current + expense.amount);
+		totals.set(expense.paidBy, current + expense.amount * expenseRate(expense));
+	}
+
+	for (const [memberId, total] of totals) {
+		totals.set(memberId, roundCents(total));
 	}
 
 	return totals;
 }
 
 /**
- * Calculate balance for each member
+ * Calculate balance for each member, in the group's default currency.
+ * Expense amounts and splits are converted via the exchange rate stored
+ * on each expense at the time it was created.
  * Positive = is owed money
  * Negative = owes money
  * Recorded settlements move money from debtor to creditor, reducing both sides.
@@ -39,14 +56,16 @@ export function calculateBalances(
 	}
 
 	for (const expense of expenses) {
+		const rate = expenseRate(expense);
+
 		// The payer gets credit for the full amount
 		const payerBalance = balances.get(expense.paidBy) ?? 0;
-		balances.set(expense.paidBy, payerBalance + expense.amount);
+		balances.set(expense.paidBy, payerBalance + expense.amount * rate);
 
 		// Each person in the split owes their portion
 		for (const split of expense.splits) {
 			const memberBalance = balances.get(split.memberId) ?? 0;
-			balances.set(split.memberId, memberBalance - split.resolvedAmount);
+			balances.set(split.memberId, memberBalance - split.resolvedAmount * rate);
 		}
 	}
 
@@ -58,6 +77,10 @@ export function calculateBalances(
 
 		const toBalance = balances.get(settlement.to) ?? 0;
 		balances.set(settlement.to, toBalance - settlement.amount);
+	}
+
+	for (const [memberId, balance] of balances) {
+		balances.set(memberId, roundCents(balance));
 	}
 
 	return balances;

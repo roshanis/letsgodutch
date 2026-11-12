@@ -138,6 +138,164 @@ describe('Balance Calculations', () => {
 		});
 	});
 
+	describe('calculateBalances with multiple currencies', () => {
+		it('should convert expenses into the group currency using the stored rate', () => {
+			// Group currency is USD. Alice paid €100 (rate 1.10) split equally
+			// between Alice and Bob: $110 total, $55 each.
+			const expenses: Expense[] = [
+				{
+					id: 'e1',
+					groupId: 'g1',
+					paidBy: 'alice',
+					amount: 100,
+					currency: 'EUR',
+					exchangeRate: 1.1,
+					description: 'Hotel',
+					date: 0,
+					splits: [
+						{ memberId: 'alice', type: 'equal', value: 1, resolvedAmount: 50 },
+						{ memberId: 'bob', type: 'equal', value: 1, resolvedAmount: 50 }
+					],
+					createdAt: 0,
+					updatedAt: 0
+				}
+			];
+
+			const balances = calculateBalances(expenses, members);
+			expect(balances.get('alice')).toBe(55); // paid 110, owes 55
+			expect(balances.get('bob')).toBe(-55);
+			expect(balances.get('carol')).toBe(0);
+		});
+
+		it('should consolidate mixed-currency expenses into one balance', () => {
+			// Alice paid €100 (rate 1.10 → $110), Bob paid $110;
+			// both split equally between the two of them, so they are even.
+			const expenses: Expense[] = [
+				{
+					id: 'e1',
+					groupId: 'g1',
+					paidBy: 'alice',
+					amount: 100,
+					currency: 'EUR',
+					exchangeRate: 1.1,
+					description: 'Dinner',
+					date: 0,
+					splits: [
+						{ memberId: 'alice', type: 'equal', value: 1, resolvedAmount: 50 },
+						{ memberId: 'bob', type: 'equal', value: 1, resolvedAmount: 50 }
+					],
+					createdAt: 0,
+					updatedAt: 0
+				},
+				{
+					id: 'e2',
+					groupId: 'g1',
+					paidBy: 'bob',
+					amount: 110,
+					currency: 'USD',
+					exchangeRate: 1,
+					description: 'Tickets',
+					date: 0,
+					splits: [
+						{ memberId: 'alice', type: 'equal', value: 1, resolvedAmount: 55 },
+						{ memberId: 'bob', type: 'equal', value: 1, resolvedAmount: 55 }
+					],
+					createdAt: 0,
+					updatedAt: 0
+				}
+			];
+
+			const balances = calculateBalances(expenses, members);
+			expect(balances.get('alice')).toBe(0);
+			expect(balances.get('bob')).toBe(0);
+			expect(simplifyDebts(balances)).toHaveLength(0);
+		});
+
+		it('should treat a missing or zero rate as 1 for legacy records', () => {
+			const expenses: Expense[] = [
+				{
+					id: 'e1',
+					groupId: 'g1',
+					paidBy: 'alice',
+					amount: 60,
+					currency: 'USD',
+					exchangeRate: 0,
+					description: 'Old expense',
+					date: 0,
+					splits: [
+						{ memberId: 'alice', type: 'equal', value: 1, resolvedAmount: 30 },
+						{ memberId: 'bob', type: 'equal', value: 1, resolvedAmount: 30 }
+					],
+					createdAt: 0,
+					updatedAt: 0
+				}
+			];
+
+			const balances = calculateBalances(expenses, members);
+			expect(balances.get('alice')).toBe(30);
+			expect(balances.get('bob')).toBe(-30);
+		});
+
+		it('should convert totals into the group currency', () => {
+			const expenses: Expense[] = [
+				{
+					id: 'e1',
+					groupId: 'g1',
+					paidBy: 'alice',
+					amount: 100,
+					currency: 'EUR',
+					exchangeRate: 1.1,
+					description: 'Hotel',
+					date: 0,
+					splits: [],
+					createdAt: 0,
+					updatedAt: 0
+				},
+				{
+					id: 'e2',
+					groupId: 'g1',
+					paidBy: 'alice',
+					amount: 20,
+					currency: 'USD',
+					exchangeRate: 1,
+					description: 'Snacks',
+					date: 0,
+					splits: [],
+					createdAt: 0,
+					updatedAt: 0
+				}
+			];
+
+			const totals = calculateTotals(expenses, members);
+			expect(totals.get('alice')).toBe(130); // 110 + 20
+		});
+
+		it('should round converted balances to cents', () => {
+			// 33.33 * 1.0789 = 35.96... — must come out rounded to 2 decimals
+			const expenses: Expense[] = [
+				{
+					id: 'e1',
+					groupId: 'g1',
+					paidBy: 'alice',
+					amount: 33.33,
+					currency: 'EUR',
+					exchangeRate: 1.0789,
+					description: 'Taxi',
+					date: 0,
+					splits: [{ memberId: 'bob', type: 'equal', value: 1, resolvedAmount: 33.33 }],
+					createdAt: 0,
+					updatedAt: 0
+				}
+			];
+
+			const balances = calculateBalances(expenses, members);
+			const alice = balances.get('alice')!;
+			const bob = balances.get('bob')!;
+			expect(alice).toBeCloseTo(35.96, 10);
+			expect(bob).toBeCloseTo(-35.96, 10);
+		});
+	});
+
 	describe('calculateBalances with settlements', () => {
 		const expenses: Expense[] = [
 			{

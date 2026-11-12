@@ -5,10 +5,17 @@
 	interface Props {
 		expense: Expense;
 		paidByMember?: Member;
+		groupCurrency?: string;
 		onClick?: () => void;
 	}
 
-	let { expense, paidByMember, onClick }: Props = $props();
+	let { expense, paidByMember, groupCurrency, onClick }: Props = $props();
+
+	const convertedAmount = $derived(
+		groupCurrency && expense.currency !== groupCurrency
+			? (expense.amount * (expense.exchangeRate > 0 ? expense.exchangeRate : 1)).toFixed(2)
+			: null
+	);
 
 	const dateStr = new Date(expense.date).toLocaleDateString('en-US', {
 		month: 'short',
@@ -49,6 +56,9 @@
 				{expense.amount.toFixed(2)}
 			</p>
 			<p class="text-xs text-surface-400">{expense.currency}</p>
+			{#if convertedAmount}
+				<p class="text-xs text-surface-500">≈ {convertedAmount} {groupCurrency}</p>
+			{/if}
 		</div>
 	</div>
 </button>

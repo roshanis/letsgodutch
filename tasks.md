@@ -196,9 +196,10 @@
 - [ ] Add default currency to group settings
 
 ### 7.3 Multi-Currency Balances
-- [ ] Update balance calculations for multi-currency
-- [ ] Store exchange rate with each expense
-- [ ] Display balances in home currency
+- [x] Update balance calculations for multi-currency (consolidated into group currency)
+- [x] Store exchange rate with each expense
+- [x] Per-expense currency picker with auto-fetched, editable rate
+- [ ] Display balances in each member's home currency
 - [ ] Add currency filter to expense list
 - [ ] Settlement currency selection
 
@@ -295,11 +296,11 @@
 - Add expenses with multiple split modes
 - Mark debts as settled, with settlement history and undo
 - Scan receipts with OCR
-- Multi-currency support
+- Multi-currency expenses with consolidated balances in the group currency
 - P2P sync with invite links (bidirectional Dexie ↔ Yjs bridge)
 - JSON backup/restore and CSV export from Settings
 - Smart category suggestions
-- 65 unit tests + 7 e2e tests passing
+- 70 unit tests + 7 e2e tests passing
 
 ---
 

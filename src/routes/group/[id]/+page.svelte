@@ -270,6 +270,7 @@
 								<ExpenseCard
 									{expense}
 									paidByMember={getMemberById(expense.paidBy)}
+									groupCurrency={group.defaultCurrency}
 								/>
 							{/each}
 						</div>
